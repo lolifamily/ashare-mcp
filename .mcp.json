@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "ashare": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "ashare_mcp"
+      ],
+      "env": {}
+    }
+  }
+}
