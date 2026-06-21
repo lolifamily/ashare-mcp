@@ -47,9 +47,12 @@ def _latest_trading_date(bs: Baostock) -> str:
     start, end = lookback_range(_LATEST_TRADE_LOOKBACK_DAYS)
     df = bs.query(
         "query_history_k_data_plus",
-        code=_LATEST_DATE_PROBE_CODE, fields="date",
-        start_date=start, end_date=end,
-        frequency="d", adjustflag="3",
+        code=_LATEST_DATE_PROBE_CODE,
+        fields="date",
+        start_date=start,
+        end_date=end,
+        frequency="d",
+        adjustflag="3",
     )
     return str(df["date"].max())
 

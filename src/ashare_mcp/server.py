@@ -60,6 +60,7 @@ def _register_all(app: FastMCP, bs: Baostock) -> None:
 
 def _make_lifespan(bs: Baostock) -> Lifespan:
     """Create a lifespan context manager that manages the baostock session."""
+
     @asynccontextmanager
     async def lifespan(_app: FastMCP[None]) -> AsyncGenerator[None]:
         bs.login()
@@ -88,7 +89,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="A-Share MCP Server")
     parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
     parser.add_argument(
-        "--port", type=int, default=3000,
+        "--port",
+        type=int,
+        default=3000,
         help="HTTP port (default 3000, ignored when --transport=stdio)",
     )
     args = parser.parse_args()

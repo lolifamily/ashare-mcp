@@ -52,9 +52,13 @@ def register(app: FastMCP, bs: Baostock) -> None:
             end_date: Optional 'YYYY-MM-DD'.
 
         """
-        return df_to_records(bs.query(
-            _BENCHMARK_RATE_QUERIES[rate_type], start_date=start_date, end_date=end_date,
-        ))
+        return df_to_records(
+            bs.query(
+                _BENCHMARK_RATE_QUERIES[rate_type],
+                start_date=start_date,
+                end_date=end_date,
+            ),
+        )
 
     app.tool()(get_benchmark_rate_data)
 
@@ -71,10 +75,14 @@ def register(app: FastMCP, bs: Baostock) -> None:
             year_type: '0' announcement date (default), '1' effective date.
 
         """
-        return df_to_records(bs.query(
-            "query_required_reserve_ratio_data",
-            start_date=start_date, end_date=end_date, yearType=year_type,
-        ))
+        return df_to_records(
+            bs.query(
+                "query_required_reserve_ratio_data",
+                start_date=start_date,
+                end_date=end_date,
+                yearType=year_type,
+            ),
+        )
 
     app.tool()(get_required_reserve_ratio_data)
 
@@ -97,8 +105,12 @@ def register(app: FastMCP, bs: Baostock) -> None:
             end_date: Optional, same format as start_date.
 
         """
-        return df_to_records(bs.query(
-            _MONEY_SUPPLY_QUERIES[freq], start_date=start_date, end_date=end_date,
-        ))
+        return df_to_records(
+            bs.query(
+                _MONEY_SUPPLY_QUERIES[freq],
+                start_date=start_date,
+                end_date=end_date,
+            ),
+        )
 
     app.tool()(get_money_supply_data)

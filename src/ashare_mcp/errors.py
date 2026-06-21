@@ -35,7 +35,12 @@ class AkshareError(Exception):
     """Raised when an akshare call fails (network, anti-scrape, missing data, etc)."""
 
     def __init__(
-        self, fn: str, kwargs: dict[str, object], cause: Exception, *, no_data: bool = False,
+        self,
+        fn: str,
+        kwargs: dict[str, object],
+        cause: Exception,
+        *,
+        no_data: bool = False,
     ) -> None:
         """Store error context from an akshare call.
 

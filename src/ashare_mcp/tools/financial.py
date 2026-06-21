@@ -127,9 +127,13 @@ def register(app: FastMCP, bs: Baostock) -> None:
             end_date: 'YYYY-MM-DD'.
 
         """
-        return df_to_records(bs.query(
-            _PERFORMANCE_REPORTS[kind],
-            code=code, start_date=start_date, end_date=end_date,
-        ))
+        return df_to_records(
+            bs.query(
+                _PERFORMANCE_REPORTS[kind],
+                code=code,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+        )
 
     app.tool()(get_performance_report)

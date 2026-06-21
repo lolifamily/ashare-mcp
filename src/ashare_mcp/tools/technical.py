@@ -54,15 +54,22 @@ _ADJUSTFLAG: dict[str, str] = {"adjusted": "2", "unadjusted": "3"}
 
 
 def _fetch_ohlcv(
-    bs: Baostock, code: str, start_date: str, end_date: str,
-    *, adjustflag: str = "2",
+    bs: Baostock,
+    code: str,
+    start_date: str,
+    end_date: str,
+    *,
+    adjustflag: str = "2",
 ) -> pd.DataFrame:
     """Fetch daily OHLCV. adjustflag: '1' backward, '2' forward (default), '3' raw."""
     df = bs.query(
         "query_history_k_data_plus",
-        code=code, fields=TA_FIELDS,
-        start_date=start_date, end_date=end_date,
-        frequency="d", adjustflag=adjustflag,
+        code=code,
+        fields=TA_FIELDS,
+        start_date=start_date,
+        end_date=end_date,
+        frequency="d",
+        adjustflag=adjustflag,
     )
     df["date"] = pd.to_datetime(df["date"])
     return df.dropna(subset=["close"])
@@ -143,7 +150,10 @@ def _ind_cci(b: _Bars) -> dict[str, pd.Series[float]]:
 def _ind_atr(b: _Bars) -> dict[str, pd.Series[float]]:
     """Average True Range."""
     atr = talib.volatility.AverageTrueRange(
-        b.high, b.low, b.close, window=_ATR_WINDOW,
+        b.high,
+        b.low,
+        b.close,
+        window=_ATR_WINDOW,
     ).average_true_range()
     # ta library fills the warmup span with 0.0 regardless of fillna=False — reads
     # as "zero volatility" instead of "not yet computed", violating this tool's
@@ -176,7 +186,11 @@ def _ind_mfi(b: _Bars) -> dict[str, pd.Series[float]]:
     """Money Flow Index. Needs RAW bars (volume is never split-adjusted by baostock)."""
     return {
         "MFI": talib.volume.MFIIndicator(
-            b.high, b.low, b.close, b.volume, window=_MFI_WINDOW,
+            b.high,
+            b.low,
+            b.close,
+            b.volume,
+            window=_MFI_WINDOW,
         ).money_flow_index(),
     }
 
@@ -201,18 +215,18 @@ _INDICATORS: dict[
     str,
     tuple[_Flavor, Callable[[_Bars], dict[str, pd.Series[float]]], tuple[str, ...], int],
 ] = {
-    "MACD":  ("adjusted",   _ind_macd,  ("MACD", "MACD_signal", "MACD_hist"),  35),  # slow(26) + signal(9)
-    "RSI":   ("adjusted",   _ind_rsi,   ("RSI",),                              _RSI_WINDOW),
-    "BOLL":  ("adjusted",   _ind_boll,  ("BB_upper", "BB_middle", "BB_lower"), _BB_WINDOW),
-    "BB":    ("adjusted",   _ind_boll,  ("BB_upper", "BB_middle", "BB_lower"), _BB_WINDOW),  # alias of BOLL
-    "WR":    ("adjusted",   _ind_wr,    ("WR",),                               _WR_WINDOW),
-    "STOCH": ("adjusted",   _ind_stoch, ("STOCH_k", "STOCH_d"),                16),  # k(14) + smooth(3) - 1
-    "KDJ":   ("adjusted",   _ind_kdj,   ("KDJ_K", "KDJ_D", "KDJ_J"),           _KDJ_WINDOW),
-    "CCI":   ("adjusted",   _ind_cci,   ("CCI",),                              _CCI_WINDOW),
-    "ATR":   ("adjusted",   _ind_atr,   ("ATR",),                              _ATR_WINDOW),
-    "ADX":   ("adjusted",   _ind_adx,   ("ADX", "ADX_pos", "ADX_neg"),         2 * _ADX_WINDOW - 1),
-    "OBV":   ("unadjusted", _ind_obv,   ("OBV",),                              0),  # cumulative, no warmup
-    "MFI":   ("unadjusted", _ind_mfi,   ("MFI",),                              _MFI_WINDOW),
+    "MACD": ("adjusted", _ind_macd, ("MACD", "MACD_signal", "MACD_hist"), 35),  # slow(26) + signal(9)
+    "RSI": ("adjusted", _ind_rsi, ("RSI",), _RSI_WINDOW),
+    "BOLL": ("adjusted", _ind_boll, ("BB_upper", "BB_middle", "BB_lower"), _BB_WINDOW),
+    "BB": ("adjusted", _ind_boll, ("BB_upper", "BB_middle", "BB_lower"), _BB_WINDOW),  # alias of BOLL
+    "WR": ("adjusted", _ind_wr, ("WR",), _WR_WINDOW),
+    "STOCH": ("adjusted", _ind_stoch, ("STOCH_k", "STOCH_d"), 16),  # k(14) + smooth(3) - 1
+    "KDJ": ("adjusted", _ind_kdj, ("KDJ_K", "KDJ_D", "KDJ_J"), _KDJ_WINDOW),
+    "CCI": ("adjusted", _ind_cci, ("CCI",), _CCI_WINDOW),
+    "ATR": ("adjusted", _ind_atr, ("ATR",), _ATR_WINDOW),
+    "ADX": ("adjusted", _ind_adx, ("ADX", "ADX_pos", "ADX_neg"), 2 * _ADX_WINDOW - 1),
+    "OBV": ("unadjusted", _ind_obv, ("OBV",), 0),  # cumulative, no warmup
+    "MFI": ("unadjusted", _ind_mfi, ("MFI",), _MFI_WINDOW),
 }
 
 
@@ -242,10 +256,7 @@ def _safe_compute(
     try:
         return fn(bars)
     except (IndexError, ValueError):
-        return {
-            col: pd.Series(np.nan, index=bars.close.index, dtype=float)
-            for col in columns
-        }
+        return {col: pd.Series(np.nan, index=bars.close.index, dtype=float) for col in columns}
 
 
 def _warmup_bars_for(requested: set[str]) -> int:
@@ -279,7 +290,10 @@ def _expand_start(start_date: str, warmup_bars: int) -> str:
 
 
 def _apply_indicators(
-    bs: Baostock, code: str, start_date: str, end_date: str,
+    bs: Baostock,
+    code: str,
+    start_date: str,
+    end_date: str,
     indicator_set: set[str],
 ) -> pd.DataFrame:
     """Fetch the bar flavors required by the requested indicators, then apply them.
@@ -293,9 +307,9 @@ def _apply_indicators(
     to `[start_date, end_date]`.
     """
     requested = {k.upper() for k in indicator_set}
-    flavors_needed: set[_Flavor] = {
-        flavor for name, (flavor, _, _, _) in _INDICATORS.items() if name in requested
-    } or {"adjusted"}
+    flavors_needed: set[_Flavor] = {flavor for name, (flavor, _, _, _) in _INDICATORS.items() if name in requested} or {
+        "adjusted",
+    }
 
     fetch_start = _expand_start(start_date, _warmup_bars_for(requested))
     dfs: dict[_Flavor, pd.DataFrame] = {
@@ -319,7 +333,9 @@ def _apply_indicators(
 
 
 def _compute_risk_stats(
-    sdf: pd.DataFrame, bdf: pd.DataFrame, risk_free_rate: float,
+    sdf: pd.DataFrame,
+    bdf: pd.DataFrame,
+    risk_free_rate: float,
 ) -> dict[str, object]:
     """Compute risk statistics from independent stock and benchmark close series.
 

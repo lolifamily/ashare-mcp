@@ -18,6 +18,13 @@ from ashare_mcp.utils import Record, scalar
 if TYPE_CHECKING:
     from baostock.data.resultset import ResultData
 
+# These field tables are hand-grouped by baostock API family (one comment per query,
+# several fields per line). ruff format only knows one-per-line or all-on-one-line;
+# letting it in explodes ~50 readable lines into 100+ and destroys the grouping, so
+# the manual layout is fenced off below.
+# NOTE: `# fmt: off` / `# fmt: on` must each sit alone on their line with no trailing
+# text — appended prose turns them into ordinary comments and the fence is ignored.
+# fmt: off
 SEMICOLON_FIELDS: frozenset[str] = frozenset({
     "dividCashPsBeforeTax",
     "dividCashPsAfterTax",
@@ -81,6 +88,7 @@ NUMERIC_FIELDS: frozenset[str] = frozenset({
     "bigInstitutionsRatioPre", "bigInstitutionsRatioAfter",
     "mediumInstitutionsRatioPre", "mediumInstitutionsRatioAfter",
 })
+# fmt: on
 
 _SEMICOLON_RE: re.Pattern[str] = re.compile("[;" + chr(0xFF1B) + "]")
 
@@ -118,11 +126,19 @@ type BsParam = str | int | None
 # else -- parameter errors (10004xxx), bad credentials (10001002), version expiry
 # (10001004) -- is raised as-is: retrying wastes a round-trip and can mask the real
 # error behind a spurious login failure.
-_RETRY_ERROR_CODES: frozenset[str] = frozenset({
-    "10001001",  # not logged in: session expired or evicted by a concurrent login
-    "10002001", "10002002", "10002003", "10002004",  # network: connection lost
-    "10002005", "10002006", "10002007", "10002008",  # network: send/recv fail or timeout
-})
+_RETRY_ERROR_CODES: frozenset[str] = frozenset(
+    {
+        "10001001",  # not logged in: session expired or evicted by a concurrent login
+        "10002001",
+        "10002002",
+        "10002003",
+        "10002004",  # network: connection lost
+        "10002005",
+        "10002006",
+        "10002007",
+        "10002008",  # network: send/recv fail or timeout
+    },
+)
 
 # baostock validates some params client-side by printing a message and returning
 # None instead of a ResultData (e.g. a malformed start_date). Sentinel error code

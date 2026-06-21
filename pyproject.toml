@@ -1,6 +1,6 @@
 [project]
 name = "ashare-mcp"
-version = "0.2.1"
+version = "0.2.2"
 description = "A-Share market data MCP server backed by baostock"
 requires-python = ">=3.12"
 dependencies = [

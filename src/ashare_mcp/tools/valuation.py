@@ -41,7 +41,9 @@ _MONTHS_PER_QUARTER = 3
 
 
 def _profit_candidates(
-    today_year: int, today_month: int, fallback_years: int,
+    today_year: int,
+    today_month: int,
+    fallback_years: int,
 ) -> list[tuple[int, int]]:
     """Reverse-chronological (year, quarter) candidates for the latest report.
 
@@ -61,11 +63,7 @@ def _profit_candidates(
     # Upper bound 3 is the structural proof that current-year Q4 never appears.
     max_q_this_year = (today_month - 1) // 3
     pairs = [(today_year, q) for q in range(max_q_this_year, 0, -1)]
-    pairs.extend(
-        (today_year - off, q)
-        for off in range(1, fallback_years)
-        for q in (4, 3, 2, 1)
-    )
+    pairs.extend((today_year - off, q) for off in range(1, fallback_years) for q in (4, 3, 2, 1))
     return pairs
 
 
@@ -158,9 +156,14 @@ def _positive_stats(vals: pd.Series[float], current: float) -> dict[str, float |
     """
     pos = vals[vals > 0]
     if pos.empty:
-        return {"positive_mean": None, "positive_median": None,
-                "positive_min": None, "positive_max": None,
-                "percentile_pct": None, "sample_size": 0}
+        return {
+            "positive_mean": None,
+            "positive_median": None,
+            "positive_min": None,
+            "positive_max": None,
+            "percentile_pct": None,
+            "sample_size": 0,
+        }
     pct = float(np.mean(pos <= current)) * _PERCENT_SCALE if current > 0 else None
     return {
         "positive_mean": float(pos.mean()),
@@ -215,9 +218,12 @@ def _register_valuation_metrics(app: FastMCP, bs: Baostock) -> None:
 
         df = bs.query(
             "query_history_k_data_plus",
-            code=code, fields=VALUATION_FIELDS,
-            start_date=start_date, end_date=end_date,
-            frequency="d", adjustflag="3",
+            code=code,
+            fields=VALUATION_FIELDS,
+            start_date=start_date,
+            end_date=end_date,
+            frequency="d",
+            adjustflag="3",
         )
 
         metrics: dict[str, dict[str, float | int | str | None]] = {}
@@ -281,14 +287,20 @@ def _register_peg(app: FastMCP, bs: Baostock) -> None:
         start, end = lookback_range(_PEG_LOOKBACK_DAYS)
         price_data = bs.query(
             "query_history_k_data_plus",
-            code=code, fields="date,close,peTTM",
-            start_date=start, end_date=end,
-            frequency="d", adjustflag="3",
+            code=code,
+            fields="date,close,peTTM",
+            start_date=start,
+            end_date=end,
+            frequency="d",
+            adjustflag="3",
         )
         pe_series = price_data["peTTM"].dropna()
         if pe_series.empty:
             return {
-                "code": code, "pe_ttm": None, "yoyni": None, "peg": None,
+                "code": code,
+                "pe_ttm": None,
+                "yoyni": None,
+                "peg": None,
                 "reason": "no PE available (likely loss-making or recently suspended)",
             }
         pe = float(pe_series.iloc[-1])
@@ -296,19 +308,28 @@ def _register_peg(app: FastMCP, bs: Baostock) -> None:
             # Not a real PE (would need infinite earnings); baostock fills 0 for
             # indices / instruments without TTM earnings data, not loss-making.
             return {
-                "code": code, "pe_ttm": pe, "yoyni": None, "peg": None,
+                "code": code,
+                "pe_ttm": pe,
+                "yoyni": None,
+                "peg": None,
                 "reason": "PE is 0: no TTM earnings data (index / non-equity instrument)",
             }
         if pe < 0:
             return {
-                "code": code, "pe_ttm": pe, "yoyni": None, "peg": None,
+                "code": code,
+                "pe_ttm": pe,
+                "yoyni": None,
+                "peg": None,
                 "reason": "PEG undefined for negative PE (loss-making company)",
             }
 
         latest = _latest_growth(bs, code)
         if latest is None:
             return {
-                "code": code, "pe_ttm": pe, "yoyni": None, "peg": None,
+                "code": code,
+                "pe_ttm": pe,
+                "yoyni": None,
+                "peg": None,
                 "reason": "no growth report published yet (fresh IPO or data delay)",
             }
         growth, g_quarter = latest
@@ -317,8 +338,12 @@ def _register_peg(app: FastMCP, bs: Baostock) -> None:
         yoyni_raw = safe_float(growth.get("YOYNI"))
         if yoyni_raw is None or yoyni_raw <= 0:
             return {
-                "code": code, "pe_ttm": pe, "yoyni": yoyni_raw, "peg": None,
-                "growth_period": growth_period, "growth_period_type": growth_period_type,
+                "code": code,
+                "pe_ttm": pe,
+                "yoyni": yoyni_raw,
+                "peg": None,
+                "growth_period": growth_period,
+                "growth_period_type": growth_period_type,
                 "reason": "PEG undefined for non-positive growth",
             }
 
@@ -479,7 +504,9 @@ def _register_ddm(app: FastMCP, bs: Baostock) -> None:
 
 
 def _check_fcf_endpoints(
-    code: str, years: list[int], fcfs: list[float],
+    code: str,
+    years: list[int],
+    fcfs: list[float],
 ) -> dict[str, object] | None:
     """Return an early-exit error dict if FCF endpoints invalidate DCF, else None.
 
@@ -503,7 +530,9 @@ def _check_fcf_endpoints(
 
 
 def _gather_fcf_baostock(
-    bs: Baostock, code: str, capex_to_ocf_ratio: float,
+    bs: Baostock,
+    code: str,
+    capex_to_ocf_ratio: float,
 ) -> tuple[list[int], list[float], list[float], float | None, dict[str, object]]:
     """Gather FCF history via baostock estimation (MBRevenue * CFOToOR).
 
@@ -542,7 +571,8 @@ def _gather_fcf_baostock(
 
 
 def _gather_fcf_akshare(
-    src: AkshareSource, code: str,
+    src: AkshareSource,
+    code: str,
 ) -> tuple[list[int], list[float], list[float], dict[str, object]]:
     """Gather FCF history via akshare real data (NETCASH_OPERATE - CONSTRUCT_LONG_ASSET)."""
     history = src.ocf_and_capex_history(code, _DCF_HISTORY_YEARS)
@@ -560,7 +590,10 @@ def _gather_fcf_akshare(
 
 
 def _gather_fcf(
-    bs: Baostock, code: str, src: AkshareSource | None, capex_to_ocf_ratio: float,
+    bs: Baostock,
+    code: str,
+    src: AkshareSource | None,
+    capex_to_ocf_ratio: float,
 ) -> tuple[list[int], list[float], list[float], float | None, dict[str, object], bool]:
     """Gather FCF history, preferring akshare real data over baostock estimation.
 
@@ -604,7 +637,9 @@ def _gather_fcf(
 
 
 def _resolve_net_debt(
-    net_debt: float | None, src: AkshareSource | None, code: str,
+    net_debt: float | None,
+    src: AkshareSource | None,
+    code: str,
 ) -> tuple[float | None, dict[str, object]]:
     """Resolve net_debt value and its provenance."""
     if net_debt is not None:
@@ -626,10 +661,12 @@ def _resolve_equity(ev: float, net_debt: float | None, total_shares: float | Non
     this never needs to know which data source was used.
     """
     if net_debt is None:
-        return {"equity_note": (
-            "per_share_intrinsic_value omitted: net_debt not provided. "
-            "Pass net_debt (interest-bearing debt minus cash) to derive equity value."
-        )}
+        return {
+            "equity_note": (
+                "per_share_intrinsic_value omitted: net_debt not provided. "
+                "Pass net_debt (interest-bearing debt minus cash) to derive equity value."
+            ),
+        }
     # round subtraction / division at the site: ev is already rounded upstream,
     # but ev - net_debt and the per-share division can both reintroduce noise
     # (subtraction of close magnitudes, division at FPU precision limits).
@@ -650,7 +687,11 @@ def _resolve_equity(ev: float, net_debt: float | None, total_shares: float | Non
 
 
 def _resolve_total_shares(
-    bs: Baostock, code: str, baostock_shares: float | None, *, used_akshare: bool,
+    bs: Baostock,
+    code: str,
+    baostock_shares: float | None,
+    *,
+    used_akshare: bool,
 ) -> float | None:
     """Total shares outstanding for the equity step.
 
@@ -723,7 +764,10 @@ def _register_dcf(app: FastMCP, bs: Baostock, src: AkshareSource | None = None) 
 
         try:
             years, ocfs, fcfs, total_shares, provenance, used_akshare = _gather_fcf(
-                bs, code, src, capex_to_ocf_ratio,
+                bs,
+                code,
+                src,
+                capex_to_ocf_ratio,
             )
         except AkshareError:
             return {"code": code, "error": "cash-flow data could not be retrieved"}
@@ -790,9 +834,7 @@ def _register_dcf(app: FastMCP, bs: Baostock, src: AkshareSource | None = None) 
                 # IS the assumption, emit it as `capex_to_ocf_ratio: <value>`.
                 # Exactly one key in each branch, no `null + ignored` pair.
                 **(
-                    {"capex_to_ocf_ratio_ignored": True}
-                    if used_akshare
-                    else {"capex_to_ocf_ratio": capex_to_ocf_ratio}
+                    {"capex_to_ocf_ratio_ignored": True} if used_akshare else {"capex_to_ocf_ratio": capex_to_ocf_ratio}
                 ),
                 "forecast_years": forecast_years,
             },
@@ -807,7 +849,11 @@ def _register_dcf(app: FastMCP, bs: Baostock, src: AkshareSource | None = None) 
 
 
 def _collect_peer_valuations(
-    bs: Baostock, peers: pd.DataFrame, start_date: str, end_date: str, target_code: str,
+    bs: Baostock,
+    peers: pd.DataFrame,
+    start_date: str,
+    end_date: str,
+    target_code: str,
 ) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
     """Fetch each peer's latest valuation row; failures are bucketed into `skipped`.
 
@@ -822,9 +868,12 @@ def _collect_peer_valuations(
         try:
             vdf = bs.query(
                 "query_history_k_data_plus",
-                code=sc, fields=VALUATION_FIELDS,
-                start_date=start_date, end_date=end_date,
-                frequency="d", adjustflag="3",
+                code=sc,
+                fields=VALUATION_FIELDS,
+                start_date=start_date,
+                end_date=end_date,
+                frequency="d",
+                adjustflag="3",
             )
         except NoDataFoundError:
             skipped.append({"code": sc, "reason": "no_data"})
@@ -836,15 +885,17 @@ def _collect_peer_valuations(
             skipped.append({"code": sc, "reason": "empty_result"})
             continue
         latest = vdf.iloc[-1]
-        valuations.append({
-            "code": sc,
-            "code_name": str(row.get("code_name", sc)),
-            "close": safe_float(latest["close"]),
-            "peTTM": safe_float(latest["peTTM"]),
-            "pbMRQ": safe_float(latest["pbMRQ"]),
-            "psTTM": safe_float(latest["psTTM"]),
-            "is_target": sc == target_code,
-        })
+        valuations.append(
+            {
+                "code": sc,
+                "code_name": str(row.get("code_name", sc)),
+                "close": safe_float(latest["close"]),
+                "peTTM": safe_float(latest["peTTM"]),
+                "pbMRQ": safe_float(latest["pbMRQ"]),
+                "psTTM": safe_float(latest["psTTM"]),
+                "is_target": sc == target_code,
+            },
+        )
     return valuations, skipped
 
 
@@ -879,10 +930,7 @@ def _industry_stats(valuations: list[dict[str, object]]) -> dict[str, dict[str, 
     """
     stats: dict[str, dict[str, float]] = {}
     for metric in ["peTTM", "pbMRQ", "psTTM"]:
-        vals_list = [
-            f for v in valuations
-            if (f := safe_float(v.get(metric))) is not None and f > 0
-        ]
+        vals_list = [f for v in valuations if (f := safe_float(v.get(metric))) is not None and f > 0]
         if vals_list:
             arr = np.array(vals_list)
             stats[metric] = {
@@ -1048,9 +1096,12 @@ def _register_snapshot(app: FastMCP, bs: Baostock) -> None:
         start, end = lookback_range(_SNAPSHOT_LOOKBACK_DAYS)
         kdf = bs.query(
             "query_history_k_data_plus",
-            code=code, fields=VALUATION_FIELDS,
-            start_date=start, end_date=end,
-            frequency="d", adjustflag="3",
+            code=code,
+            fields=VALUATION_FIELDS,
+            start_date=start,
+            end_date=end,
+            frequency="d",
+            adjustflag="3",
         )
         latest_k = kdf.iloc[-1]
         price = safe_float(latest_k["close"])
