@@ -1,15 +1,17 @@
-"""Financial report tools: profitability, growth, balance sheet, cash flow, DuPont."""
+"""Financial report tools: quarterly statements and performance/forecast reports."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ashare_mcp.utils import Record, df_to_records
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from mcp.server.fastmcp import FastMCP
 
-    from ashare_mcp.baostock_client import Baostock
+    from ashare_mcp.baostock_client import Baostock, BsQueryFn
 
 
 def _rederive_liability_to_asset(records: list[Record]) -> list[Record]:
@@ -32,121 +34,102 @@ def _rederive_liability_to_asset(records: list[Record]) -> list[Record]:
     return records
 
 
+def _identity(records: list[Record]) -> list[Record]:
+    """Return records unchanged — default post-processor for reports needing no fix-up."""
+    return records
+
+
+# report -> (baostock query fn, post-processor). Keep keys in sync with the
+# Literal in get_financial_indicators's signature (that Literal drives the tool's
+# JSON schema; this table drives dispatch). The post-processor folds balance's
+# liabilityToAsset fix-up into the data table, mirroring technical._INDICATORS,
+# so the tool body stays branch-free — balance is no longer a special case.
+_QUARTERLY_REPORTS: dict[str, tuple[BsQueryFn, Callable[[list[Record]], list[Record]]]] = {
+    "profit": ("query_profit_data", _identity),
+    "operation": ("query_operation_data", _identity),
+    "growth": ("query_growth_data", _identity),
+    "balance": ("query_balance_data", _rederive_liability_to_asset),
+    "cash_flow": ("query_cash_flow_data", _identity),
+    "dupont": ("query_dupont_data", _identity),
+}
+
+# kind -> baostock query fn for the two non-periodic performance disclosures.
+# Same (code, start_date, end_date) signature; differ only in the row schema.
+_PERFORMANCE_REPORTS: dict[str, BsQueryFn] = {
+    "express": "query_performance_express_report",
+    "forecast": "query_forecast_report",
+}
+
+
 def register(app: FastMCP, bs: Baostock) -> None:
     """Register financial report tools with the MCP app."""
 
-    def get_profit_data(code: str, year: str, quarter: int) -> list[Record]:
-        """Fetch quarterly profitability data including netProfit, MBRevenue, totalShare.
+    def get_financial_indicators(
+        code: str,
+        report: Literal["profit", "operation", "growth", "balance", "cash_flow", "dupont"],
+        year: str,
+        quarter: int,
+    ) -> list[Record]:
+        """Fetch a quarterly financial report; `report` selects which statement.
+
+        baostock splits quarterly fundamentals across six statements, each with a
+        distinct field set. All values are cumulative-from-year-start: quarter=1
+        is 3-month, 2 is H1 (6-month), 3 is 9-month, 4 is FY (12-month).
+
+        report:
+          - 'profit':    profitability — roeAvg, npMargin, gpMargin, netProfit,
+                         epsTTM, MBRevenue, totalShare.
+          - 'operation': turnover ratios — NRTurnRatio, INVTurnRatio, CATurnRatio,
+                         AssetTurnRatio (and matching *Days).
+          - 'growth':    YoY growth rates — YOYNI, YOYEPSBasic, YOYEquity,
+                         YOYAsset, YOYPNI.
+          - 'balance':   balance-sheet ratios — currentRatio, quickRatio,
+                         liabilityToAsset, assetToEquity. liabilityToAsset is
+                         rederived as 1 - 1/assetToEquity to work around stale
+                         upstream values (falls back to the raw value only when
+                         assetToEquity is null or zero).
+          - 'cash_flow': cash-flow ratios — CFOToOR, CFOToNP, CFOToGr, CAToAsset.
+          - 'dupont':    DuPont ROE decomposition — dupontROE, dupontAssetTurn,
+                         dupontNitogr, dupontTaxBurden, dupontEbittogr.
 
         Args:
             code: Stock code, e.g. 'sh.600519'.
+            report: Which statement to fetch (see above).
             year: 4-digit year, e.g. '2024'.
             quarter: 1, 2, 3, or 4.
 
         """
-        return df_to_records(bs.query("query_profit_data", code=code, year=year, quarter=quarter))
+        query_fn, postprocess = _QUARTERLY_REPORTS[report]
+        return postprocess(df_to_records(bs.query(query_fn, code=code, year=year, quarter=quarter)))
 
-    app.tool()(get_profit_data)
+    app.tool()(get_financial_indicators)
 
-    def get_operation_data(code: str, year: str, quarter: int) -> list[Record]:
-        """Fetch quarterly operation capability data (turnover ratios).
+    def get_performance_report(
+        code: str,
+        kind: Literal["express", "forecast"],
+        start_date: str,
+        end_date: str,
+    ) -> list[Record]:
+        """Fetch performance express (业绩快报) or forecast (业绩预告) reports.
 
-        Args:
-            code: Stock code.
-            year: 4-digit year.
-            quarter: 1-4.
-
-        """
-        return df_to_records(bs.query("query_operation_data", code=code, year=year, quarter=quarter))
-
-    app.tool()(get_operation_data)
-
-    def get_growth_data(code: str, year: str, quarter: int) -> list[Record]:
-        """Fetch quarterly growth data (YOY rates: YOYNI, YOYEPSBasic, etc).
-
-        Args:
-            code: Stock code.
-            year: 4-digit year.
-            quarter: 1-4.
-
-        """
-        return df_to_records(bs.query("query_growth_data", code=code, year=year, quarter=quarter))
-
-    app.tool()(get_growth_data)
-
-    def get_balance_data(code: str, year: str, quarter: int) -> list[Record]:
-        """Fetch quarterly balance sheet ratios (currentRatio, liabilityToAsset, etc).
-
-        `liabilityToAsset` is always rederived as `1 - 1/assetToEquity` to work
-        around stale upstream values; falls back to the raw value only when
-        assetToEquity is null or zero.
+        kind:
+          - 'express':  performance express reports — absolute
+                        performanceExpressTotalAsset / NetAsset / EPSDiluted /
+                        ROEWa / GRYOY for companies that file them ahead of the
+                        full report.
+          - 'forecast': performance forecast reports — profitForcastChgPctUp /
+                        profitForcastChgPctDwn and the forecast type.
 
         Args:
             code: Stock code.
-            year: 4-digit year.
-            quarter: 1-4.
-
-        """
-        return _rederive_liability_to_asset(
-            df_to_records(bs.query("query_balance_data", code=code, year=year, quarter=quarter)),
-        )
-
-    app.tool()(get_balance_data)
-
-    def get_cash_flow_data(code: str, year: str, quarter: int) -> list[Record]:
-        """Fetch quarterly cash flow ratios (CFOToOR, CFOToNP, etc).
-
-        Args:
-            code: Stock code.
-            year: 4-digit year.
-            quarter: 1-4.
-
-        """
-        return df_to_records(bs.query("query_cash_flow_data", code=code, year=year, quarter=quarter))
-
-    app.tool()(get_cash_flow_data)
-
-    def get_dupont_data(code: str, year: str, quarter: int) -> list[Record]:
-        """Fetch quarterly DuPont analysis data (ROE decomposition).
-
-        Args:
-            code: Stock code.
-            year: 4-digit year.
-            quarter: 1-4.
-
-        """
-        return df_to_records(bs.query("query_dupont_data", code=code, year=year, quarter=quarter))
-
-    app.tool()(get_dupont_data)
-
-    def get_performance_express_report(code: str, start_date: str, end_date: str) -> list[Record]:
-        """Fetch performance express reports (absolute TotalAsset/NetAsset for some companies).
-
-        Args:
-            code: Stock code.
+            kind: 'express' for filed express reports, 'forecast' for guidance.
             start_date: 'YYYY-MM-DD'.
             end_date: 'YYYY-MM-DD'.
 
         """
         return df_to_records(bs.query(
-            "query_performance_express_report",
+            _PERFORMANCE_REPORTS[kind],
             code=code, start_date=start_date, end_date=end_date,
         ))
 
-    app.tool()(get_performance_express_report)
-
-    def get_forecast_report(code: str, start_date: str, end_date: str) -> list[Record]:
-        """Fetch performance forecast reports.
-
-        Args:
-            code: Stock code.
-            start_date: 'YYYY-MM-DD'.
-            end_date: 'YYYY-MM-DD'.
-
-        """
-        return df_to_records(bs.query(
-            "query_forecast_report",
-            code=code, start_date=start_date, end_date=end_date,
-        ))
-
-    app.tool()(get_forecast_report)
+    app.tool()(get_performance_report)

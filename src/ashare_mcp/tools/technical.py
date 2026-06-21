@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime as dt
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import numpy as np
@@ -276,8 +275,7 @@ def _expand_start(start_date: str, warmup_bars: int) -> str:
     if warmup_bars <= 0:
         return start_date
     calendar_days = warmup_bars * 365 // _TRADING_DAYS_PER_YEAR + 15
-    anchor = dt.datetime.strptime(start_date, "%Y-%m-%d")
-    return (anchor - dt.timedelta(days=calendar_days)).strftime("%Y-%m-%d")
+    return lookback_range(calendar_days, end=start_date)[0]
 
 
 def _apply_indicators(

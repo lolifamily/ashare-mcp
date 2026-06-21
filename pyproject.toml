@@ -1,6 +1,6 @@
 [project]
 name = "ashare-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "A-Share market data MCP server backed by baostock"
 requires-python = ">=3.12"
 dependencies = [
@@ -34,11 +34,15 @@ pythonVersion = "3.12"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = true
 reportUnnecessaryTypeIgnoreComment = true
+ignore = ["typings"]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 120
 src = ["src"]
+# typings/ is pyright --createstub output for third-party libs, not our own code.
+# Without excluding it, select=["ALL"] floods the report with generated-stub lint.
+extend-exclude = ["typings"]
 
 [tool.ruff.lint]
 select = ["ALL"]
