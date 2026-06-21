@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ashare_mcp.baostock_client import as_float, lookback_range
+from ashare_mcp.utils import as_float, lookback_range
 
 if TYPE_CHECKING:
-    from ashare_mcp.baostock_client import Baostock, Record
+    from ashare_mcp.baostock_client import Baostock
+    from ashare_mcp.utils import Record
 
 _PRICE_LOOKBACK_DAYS = 15
 _OCF_PRECISION_PCT = 2.0

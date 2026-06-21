@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ashare_mcp.baostock_client import Record, df_to_records
+from ashare_mcp.utils import Record, df_to_records
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -16,13 +16,13 @@ def register(app: FastMCP, bs: Baostock) -> None:
     """Register index-related tools with the MCP app."""
 
     def get_stock_industry(
-        code: str | None = None,
+        code: str,
         date: str | None = None,
     ) -> list[Record]:
         """Fetch industry classification data.
 
         Args:
-            code: Optional stock code. If None, returns all stocks.
+            code: Stock code, e.g. 'sh.600519'.
             date: Optional date 'YYYY-MM-DD'. Defaults to latest.
 
         """
@@ -31,7 +31,7 @@ def register(app: FastMCP, bs: Baostock) -> None:
     app.tool()(get_stock_industry)
 
     def get_sz50_stocks(date: str | None = None) -> list[Record]:
-        """Fetch SZSE 50 index constituent stocks.
+        """Fetch SSE 50 (上证50) index constituent stocks.
 
         Args:
             date: Optional date 'YYYY-MM-DD'. Defaults to latest.

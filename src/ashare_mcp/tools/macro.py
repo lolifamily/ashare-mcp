@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ashare_mcp.baostock_client import Record, df_to_records
+from ashare_mcp.utils import Record, df_to_records
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP

@@ -4,12 +4,32 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ashare_mcp.baostock_client import Record, df_to_records
+from ashare_mcp.utils import Record, df_to_records
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
     from ashare_mcp.baostock_client import Baostock
+
+
+def _rederive_liability_to_asset(records: list[Record]) -> list[Record]:
+    """In-place rewrite liabilityToAsset := 1 - 1/assetToEquity per row.
+
+    baostock liabilityToAsset is off by 100x for reports published in a
+    ~2024-08 to ~2026-04 window (6 quarters never backfilled). Same-class
+    bug as modifyRecord.md 2019-11-23 entry on the same field; the 2024
+    recurrence is undocumented. assetToEquity was never affected by either
+    incident, so the inverse identity is reliable and matches the raw value
+    to floating-point precision on clean rows, making unconditional
+    rederivation safe — no time-window special case. Rows where
+    assetToEquity is null/zero keep the raw liabilityToAsset value.
+    """
+    for r in records:
+        a2e = r.get("assetToEquity")
+        # exclude bool: True is an int subclass and would be treated as a2e=1.
+        if isinstance(a2e, (int, float)) and not isinstance(a2e, bool) and a2e != 0:
+            r["liabilityToAsset"] = 1 - 1 / a2e
+    return records
 
 
 def register(app: FastMCP, bs: Baostock) -> None:
@@ -57,13 +77,19 @@ def register(app: FastMCP, bs: Baostock) -> None:
     def get_balance_data(code: str, year: str, quarter: int) -> list[Record]:
         """Fetch quarterly balance sheet ratios (currentRatio, liabilityToAsset, etc).
 
+        `liabilityToAsset` is always rederived as `1 - 1/assetToEquity` to work
+        around stale upstream values; falls back to the raw value only when
+        assetToEquity is null or zero.
+
         Args:
             code: Stock code.
             year: 4-digit year.
             quarter: 1-4.
 
         """
-        return df_to_records(bs.query("query_balance_data", code=code, year=year, quarter=quarter))
+        return _rederive_liability_to_asset(
+            df_to_records(bs.query("query_balance_data", code=code, year=year, quarter=quarter)),
+        )
 
     app.tool()(get_balance_data)
 

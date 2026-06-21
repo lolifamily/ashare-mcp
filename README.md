@@ -15,6 +15,7 @@ A-Share (中国A股) 市场数据 MCP 服务器，基于 [baostock](http://baost
 |------|------|
 | 行情数据 | K线、快照、复权因子、股票列表、行业分类、交易日历、分红 |
 | 财务数据 | 利润、增长、资产负债、现金流、杜邦分析、营运能力 |
+| 财务报表 (akshare 可选) | 资产负债表、利润表、现金流量表 (绝对值全科目)、净负债 |
 | 指数成分 | 沪深300、上证50、中证500 |
 | 宏观数据 | 货币供应量 (M0/M1/M2)、存贷款利率、存款准备金率 |
 | 技术分析 | MACD、RSI、KDJ、BOLL、WR、CCI、ATR、ADX、OBV、MFI、均线 (SMA/EMA) |
@@ -40,14 +41,28 @@ uv run python -m ashare_mcp
 uv run python -m ashare_mcp --transport http --port 3000
 ```
 
+### 可选: akshare 扩展
+
+```bash
+# 安装 akshare 可选依赖后多出 2 个工具 + DCF 自动改用真实现金流/Capex/净负债
+uv sync --extra akshare
+```
+
+安装后:
+- 新增 `get_financial_statement` (参数 `statement`: balance/income/cash_flow) 和 `get_net_debt` 工具 (数据源: 东方财富)
+- `calculate_dcf_valuation` 自动改用真实经营现金流 (`NETCASH_OPERATE`) 和 Capex (`CONSTRUCT_LONG_ASSET`)，`net_debt` 自动从资产负债表计算；`capex_to_ocf_ratio` 仍需提供，作为 akshare 运行时失败/未安装时的回退估算
+- `data_provenance` 字段如实标注数据来源
+- 不安装则行为与之前完全一致
+
 ## 注意事项
 
 - 数据来源为 baostock **免费接口**，无需注册、无需 API Key
 - baostock 仅提供 A 股历史数据，**不提供实时行情**
 - 技术指标需要足够的历史数据做 warmup（如 MACD 至少需要 33 个交易日），窗口过短会返回 null
 - 复权因子仅在除权除息日存在记录，非除权日期查询会返回空
-- DCF 中的 OCF 是由 `MBRevenue * CFOToOR` 推算的（约 2% 精度），Capex 需调用者自行提供
-- DDM 的股利增长率会被 clamp 到 [1%, 20%] 区间，防止极端外推
+- DCF 中的 OCF 是由 `MBRevenue * CFOToOR` 推算的（约 2% 精度），Capex 需调用者自行提供；安装 akshare 后自动改用真实数据
+- DDM 的股利 CAGR 仅上限 clamp 到 20%（防过度外推），负 CAGR 透传
+- akshare 数据源走东方财富网页接口，有反爬/限频，不保证永久稳定
 
 ## Credits
 

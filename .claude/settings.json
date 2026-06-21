@@ -1,0 +1,10 @@
+{
+  "enabledMcpjsonServers": [
+    "ashare"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__ashare"
+    ]
+  }
+}
