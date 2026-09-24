@@ -26,7 +26,7 @@ def get_latest_close(bs: Baostock, code: str) -> float:
         frequency="d",
         adjustflag="3",
     )
-    return as_float(df.loc[df["date"].idxmax(), "close"])
+    return as_float(df["close"].iloc[df["date"].argmax()])
 
 
 def derive_ocf(profit: Record, cash_flow: Record) -> tuple[float, float]:

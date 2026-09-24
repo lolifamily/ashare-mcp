@@ -13,7 +13,7 @@ from ashare_mcp.utils import ZERO_THRESHOLD, df_to_records, lookback_range
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
     from ashare_mcp.baostock_client import Baostock
     from ashare_mcp.utils import Record
@@ -441,7 +441,7 @@ def _compute_risk_stats(
     }
 
 
-def _register_indicators(app: FastMCP, bs: Baostock) -> None:
+def _register_indicators(app: MCPServer, bs: Baostock) -> None:
     def get_technical_indicators(
         code: str,
         start_date: str,
@@ -488,7 +488,7 @@ def _register_indicators(app: FastMCP, bs: Baostock) -> None:
     app.tool()(get_technical_indicators)
 
 
-def _register_moving_averages(app: FastMCP, bs: Baostock) -> None:
+def _register_moving_averages(app: MCPServer, bs: Baostock) -> None:
     def get_moving_averages(
         code: str,
         start_date: str,
@@ -558,7 +558,7 @@ def _register_moving_averages(app: FastMCP, bs: Baostock) -> None:
     app.tool()(get_moving_averages)
 
 
-def _register_risk_metrics(app: FastMCP, bs: Baostock) -> None:
+def _register_risk_metrics(app: MCPServer, bs: Baostock) -> None:
     def calculate_risk_metrics(
         code: str,
         benchmark_code: str = "sh.000300",
@@ -606,7 +606,7 @@ def _register_risk_metrics(app: FastMCP, bs: Baostock) -> None:
     app.tool()(calculate_risk_metrics)
 
 
-def register(app: FastMCP, bs: Baostock) -> None:
+def register(app: MCPServer, bs: Baostock) -> None:
     """Register technical analysis tools with the MCP app."""
     _register_indicators(app, bs)
     _register_moving_averages(app, bs)

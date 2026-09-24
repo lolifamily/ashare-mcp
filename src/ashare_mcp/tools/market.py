@@ -8,7 +8,7 @@ from ashare_mcp.errors import NoDataFoundError
 from ashare_mcp.utils import Record, df_to_records, lookback_range, safe_float
 
 if TYPE_CHECKING:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
     from ashare_mcp.baostock_client import Baostock
 
@@ -57,7 +57,7 @@ def _latest_trading_date(bs: Baostock) -> str:
     return str(df["date"].max())
 
 
-def register(app: FastMCP, bs: Baostock) -> None:
+def register(app: MCPServer, bs: Baostock) -> None:
     """Register market data tools with the MCP app."""
 
     def get_historical_k_data(

@@ -14,7 +14,7 @@ from ashare_mcp.utils import MARKET_TZ, ZERO_THRESHOLD, Record, as_float, lookba
 
 if TYPE_CHECKING:
     import pandas as pd
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
     from ashare_mcp.akshare_source import AkshareSource
     from ashare_mcp.baostock_client import Baostock, BsQueryFn
@@ -175,7 +175,7 @@ def _positive_stats(vals: pd.Series[float], current: float) -> dict[str, float |
     }
 
 
-def register(app: FastMCP, bs: Baostock, src: AkshareSource | None = None) -> None:
+def register(app: MCPServer, bs: Baostock, src: AkshareSource | None = None) -> None:
     """Register valuation tools with the MCP app."""
     _register_valuation_metrics(app, bs)
     _register_peg(app, bs)
@@ -185,7 +185,7 @@ def register(app: FastMCP, bs: Baostock, src: AkshareSource | None = None) -> No
     _register_snapshot(app, bs)
 
 
-def _register_valuation_metrics(app: FastMCP, bs: Baostock) -> None:
+def _register_valuation_metrics(app: MCPServer, bs: Baostock) -> None:
     def get_valuation_metrics(
         code: str,
         start_date: str | None = None,
@@ -264,7 +264,7 @@ def _register_valuation_metrics(app: FastMCP, bs: Baostock) -> None:
     app.tool()(get_valuation_metrics)
 
 
-def _register_peg(app: FastMCP, bs: Baostock) -> None:
+def _register_peg(app: MCPServer, bs: Baostock) -> None:
     def calculate_peg_ratio(code: str) -> dict[str, object]:
         """Calculate PEG = current PE_TTM / G, with G the latest published YoY net profit growth.
 
@@ -387,7 +387,7 @@ def _collect_annual_dividends(bs: Baostock, code: str, current_year: int, years_
     return annual_divs
 
 
-def _register_ddm(app: FastMCP, bs: Baostock) -> None:
+def _register_ddm(app: MCPServer, bs: Baostock) -> None:
     def calculate_ddm_valuation(
         code: str,
         discount_rate: float,
@@ -704,7 +704,7 @@ def _resolve_total_shares(
     return safe_float(latest[0]["totalShare"]) if latest is not None else None
 
 
-def _register_dcf(app: FastMCP, bs: Baostock, src: AkshareSource | None = None) -> None:
+def _register_dcf(app: MCPServer, bs: Baostock, src: AkshareSource | None = None) -> None:
     def calculate_dcf_valuation(
         code: str,
         discount_rate: float,
@@ -943,7 +943,7 @@ def _industry_stats(valuations: list[dict[str, object]]) -> dict[str, dict[str, 
     return stats
 
 
-def _register_industry_comparison(app: FastMCP, bs: Baostock) -> None:
+def _register_industry_comparison(app: MCPServer, bs: Baostock) -> None:
     def compare_industry_valuation(code: str, date: str | None = None) -> dict[str, object]:
         """Compare a stock's valuation (PE/PB/PS) against its industry peers.
 
@@ -1067,7 +1067,7 @@ def _optional_record(bs: Baostock, fn: BsQueryFn, code: str) -> Record:
         return {}
 
 
-def _register_snapshot(app: FastMCP, bs: Baostock) -> None:
+def _register_snapshot(app: MCPServer, bs: Baostock) -> None:
     def get_stock_snapshot(code: str) -> dict[str, object]:
         """One-call snapshot: latest price, valuation, industry, total shares, net profit.
 

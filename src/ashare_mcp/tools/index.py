@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal
 from ashare_mcp.utils import Record, df_to_records
 
 if TYPE_CHECKING:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
     from ashare_mcp.baostock_client import Baostock, BsQueryFn
 
@@ -23,7 +23,7 @@ _INDEX_QUERIES: dict[str, BsQueryFn] = {
 }
 
 
-def register(app: FastMCP, bs: Baostock) -> None:
+def register(app: MCPServer, bs: Baostock) -> None:
     """Register index-related tools with the MCP app."""
 
     def get_stock_industry(

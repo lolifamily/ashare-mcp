@@ -8,7 +8,7 @@ from ashare_mcp.utils import Record, df_to_records
 
 if TYPE_CHECKING:
     import pandas as pd
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
     from ashare_mcp.akshare_source import AkshareSource
 
@@ -28,7 +28,7 @@ def _trim_statement(df: pd.DataFrame, periods: int) -> pd.DataFrame:
     return df.head(periods).dropna(axis=1, how="all")
 
 
-def register(app: FastMCP, src: AkshareSource) -> None:
+def register(app: MCPServer, src: AkshareSource) -> None:
     """Register akshare-backed financial statement tools."""
 
     def get_financial_statement(

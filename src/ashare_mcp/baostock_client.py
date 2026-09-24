@@ -4,16 +4,15 @@ from __future__ import annotations
 
 import re
 import threading
-from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
 from typing import TYPE_CHECKING, Literal
 
 import baostock as bs
+import baostock.common.contants as _bs_cons  # sic: baostock's spelling
 import baostock.common.context as _bs_context
 import pandas as pd
 
 from ashare_mcp.errors import BaostockError, NoDataFoundError
-from ashare_mcp.utils import Record, scalar
+from ashare_mcp.utils import Record, quiet, scalar
 
 if TYPE_CHECKING:
     from baostock.data.resultset import ResultData
@@ -203,12 +202,12 @@ class Baostock:
         baostock's server-side session can lapse out from under us (idle timeout, or a
         concurrent login on the same account evicting ours), and the optimistic
         self._logged_in flag can't see that -- left alone, one lapse fails every later
-        call forever. On a session/network error code -- whether surfaced as the query
-        result's error_code or raised by _login_locked itself when bs.login() flakes --
-        we drop the flag and retry once, forcing a fresh login. Parameter errors
-        (10004xxx) are raised without retry. Retry is globally capped at 1: the second
-        _run_locked call propagates any failure as-is, so a login failure inside it is
-        NOT caught again -- this prevents nested login retries from compounding.
+        call forever. On a session/network error code -- from the login, the first
+        page, or any later page -- we drop the flag and retry the whole fetch once,
+        forcing a fresh login. Parameter errors (10004xxx) are raised without retry.
+        Retry is globally capped at 1: the second _fetch_locked call propagates any
+        failure as-is, so a login failure inside it is NOT caught again -- this
+        prevents nested login retries from compounding.
         """
         code = kwargs.get("code")
         if isinstance(code, str) and not code.strip():
@@ -217,38 +216,53 @@ class Baostock:
         with self._lock:
             clean: dict[str, str | int] = {k: v for k, v in kwargs.items() if v is not None}
             try:
-                rs = self._run_locked(fn_name, clean)
-                retry = rs is not None and rs.error_code in _RETRY_ERROR_CODES
+                fields, rows = self._fetch_locked(fn_name, clean)
             except BaostockError as e:
-                # _login_locked failed inside _run_locked. If the failure is a retryable
-                # network/session code, fall through to the same retry path query already
-                # uses for rs.error_code. Non-retryable codes (bad credentials, etc.) raise.
                 if e.code not in _RETRY_ERROR_CODES:
                     raise
-                rs, retry = None, True
-            if retry:
                 self._logged_in = False  # session is dead; _run_locked re-logs in on retry
-                rs = self._run_locked(fn_name, clean)
-            if rs is None:
-                msg = "baostock returned None (malformed params?)"
-                raise BaostockError(fn_name, dict(kwargs), _NULL_RESULT_CODE, msg)
-            if rs.error_code != "0":
-                raise BaostockError(fn_name, dict(kwargs), rs.error_code, rs.error_msg)
-            rows: list[list[str]] = []
-            while rs.next():
-                rows.append(rs.get_row_data())
+                fields, rows = self._fetch_locked(fn_name, clean)
             if not rows:
                 raise NoDataFoundError(fn_name, dict(kwargs))
-            df = pd.DataFrame(rows, columns=rs.fields)
+            df = pd.DataFrame(rows, columns=fields)
             self._normalize(df)
             return df
+
+    def _fetch_locked(self, fn_name: BsQueryFn, clean: dict[str, str | int]) -> tuple[list[str], list[list[str]]]:
+        """Run the query and drain every page into (fields, rows). Caller must hold self._lock.
+
+        Every failure -- login, first page, or a later page -- is raised as a
+        BaostockError, so query() retries the whole fetch as one unit.
+        """
+        rs = self._run_locked(fn_name, clean)
+        if rs is None:
+            msg = "baostock returned None (malformed params?)"
+            raise BaostockError(fn_name, dict(clean), _NULL_RESULT_CODE, msg)
+        rows: list[list[str]] = []
+        while rs.next():
+            rows.append(rs.get_row_data())
+        # rs.next() fetches pages 2..n itself, and its False means both "no more rows"
+        # and "the next page never came". A server error at least sets error_code (this
+        # check also catches a failed first page, whose rs.data is empty); a network
+        # failure -- _QUERY_TIMEOUT_S included -- sets nothing, but leaves behind the
+        # page it gave up after, and that page is full. A genuine last page never is:
+        # past an exact multiple of the page size the server sends an empty page. The
+        # page size comes from baostock, not a literal: 0.9.4 raised it from 500 to 2000.
+        if rs.error_code != "0":
+            raise BaostockError(fn_name, dict(clean), rs.error_code, rs.error_msg)
+        if len(rs.data) == _bs_cons.BAOSTOCK_PER_PAGE_COUNT:
+            # BSERR_RECVSOCK_FAIL is what baostock reports for this same failure on a
+            # first page, and it's in _RETRY_ERROR_CODES, so query() retries it alike.
+            msg = f"the page after row {len(rows)} never arrived; refusing a truncated result"
+            raise BaostockError(fn_name, dict(clean), _bs_cons.BSERR_RECVSOCK_FAIL, msg)
+        return rs.fields, rows
 
     def _run_locked(self, fn_name: BsQueryFn, clean: dict[str, str | int]) -> ResultData | None:
         """Log in if needed, then run the baostock query fn. Caller must hold self._lock.
 
         Returns baostock's raw result, including the None it yields for some
-        client-side param validation failures; query()'s guard turns that into a
-        BaostockError.
+        client-side param validation failures; _fetch_locked's guard turns that into
+        a BaostockError.
 
         Suppresses stdout/stderr around the call: on client-side validation
         failure (bad date / quarter / code format / reversed range) baostock
@@ -259,8 +273,7 @@ class Baostock:
         if not self._logged_in:
             self._login_locked()
         fn = getattr(bs, fn_name)
-        buf = StringIO()
-        with redirect_stdout(buf), redirect_stderr(buf):
+        with quiet():
             return fn(**clean)  # may be None for malformed params
 
     def query_one(self, fn_name: BsQueryFn, **kwargs: BsParam) -> Record:
@@ -272,8 +285,7 @@ class Baostock:
         """Login implementation; caller must hold self._lock."""
         if self._logged_in:
             return
-        buf = StringIO()
-        with redirect_stdout(buf), redirect_stderr(buf):
+        with quiet():
             lg: ResultData = bs.login()
         if lg.error_code != "0":
             fn_name = "login"
@@ -294,8 +306,7 @@ class Baostock:
         """Logout implementation; caller must hold self._lock."""
         if not self._logged_in:
             return
-        buf = StringIO()
-        with redirect_stdout(buf), redirect_stderr(buf):
+        with quiet():
             bs.logout()
         self._logged_in = False
 

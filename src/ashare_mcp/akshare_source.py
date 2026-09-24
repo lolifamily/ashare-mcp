@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import datetime as dt
-from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from ashare_mcp.errors import AkshareError
-from ashare_mcp.utils import MARKET_TZ, safe_float
+from ashare_mcp.utils import MARKET_TZ, quiet, safe_float
 
 if TYPE_CHECKING:
     import types
@@ -71,9 +69,8 @@ def _call(ak: types.ModuleType, fn_name: str, code: str) -> pd.DataFrame:
     Same defensive pattern as Baostock._login_locked / _logout_locked.
     """
     sym = _to_em(code)
-    buf = StringIO()
     try:
-        with redirect_stdout(buf), redirect_stderr(buf):
+        with quiet():
             return getattr(ak, fn_name)(symbol=sym)
     except Exception as e:
         cause, no_data = _explain(e)

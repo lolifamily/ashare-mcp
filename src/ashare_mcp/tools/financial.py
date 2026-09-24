@@ -9,7 +9,7 @@ from ashare_mcp.utils import Record, df_to_records
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
     from ashare_mcp.baostock_client import Baostock, BsQueryFn
 
@@ -61,7 +61,7 @@ _PERFORMANCE_REPORTS: dict[str, BsQueryFn] = {
 }
 
 
-def register(app: FastMCP, bs: Baostock) -> None:
+def register(app: MCPServer, bs: Baostock) -> None:
     """Register financial report tools with the MCP app."""
 
     def get_financial_indicators(
